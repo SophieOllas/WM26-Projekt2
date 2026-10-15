@@ -1,0 +1,13 @@
+services:
+  node-app:
+    build:
+      context: .
+    volumes:
+      - .:/app
+      - /app/node_modules
+    ports:
+      - "8300:8080"
+    environment:
+      - MODE
+      - DATABASE_URL
+      - JWT_SECRET

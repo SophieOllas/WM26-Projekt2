@@ -1,0 +1,25 @@
+@API_URL = http://localhost:8300
+@DEV_TOKEN = {{$dotenv DEV_TOKEN}}
+
+GET {{API_URL}}/users
+
+
+###
+POST {{API_URL}}/users
+Content-Type: application/json
+
+{
+  "email": "john@doe.com",
+  "password": "password123",
+  "name": "John Doe"
+}
+
+
+###
+POST {{API_URL}}/users/login
+Content-Type: application/json
+
+{
+  "email": "john@doe.com",
+  "password": "password123"
+}
