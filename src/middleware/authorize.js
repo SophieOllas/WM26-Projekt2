@@ -5,7 +5,7 @@ module.exports = (req, res, next) => {
     try {
         const authHeader = req.headers['authorization']
         const token = authHeader.split(' ')[1]
-        const user = jwt.verify(token, process.env.JWT_SECRET)
+        const user = jwt.verify(token, process.env.JWT_REFRESH_SECRET)
         req.authUser = user
 
         console.log(`Token valid for user ${user.sub} ${user.name}`)

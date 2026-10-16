@@ -1,12 +1,10 @@
 const express = require('express')
-const { neon } = require('@neondatabase/serverless')
 const router = express.Router()
 const { PrismaClient } = require('@prisma/client')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const authorize = require('../middleware/authorize')
 
-const sql = neon(process.env.DATABASE_URL)
 const prisma = new PrismaClient()
 
 router.post('/', async (req, res) => {
@@ -59,16 +57,81 @@ router.post('/login', async (req, res) => {
         return res.status(401).json({ message: 'Authentication failed' })
     }
 
-    const token = await jwt.sign({ 
+    const access_token = await jwt.sign({ 
         sub: loginUser.id,
         email: loginUser.email,
         name: loginUser.name
-    }, process.env.JWT_SECRET, { expiresIn: '30d' })
+    }, process.env.JWT_SECRET, { expiresIn: '15min' })
+
+    const refresh_token = await jwt.sign({ 
+        sub: loginUser.id,
+        email: loginUser.email,
+        name: loginUser.name
+    }, process.env.JWT_REFRESH_SECRET, { expiresIn: '30d' })
+
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+    await prisma.refresh_tokens.create({
+        data: {
+            user_id: loginUser.id,
+            token: refresh_token,
+            expires_at: refreshExpiresAt
+        }
+    })
 
     res.send({
         msg : "Login successful",
         id: loginUser.id,
-        jwt: token
+        jwt: access_token,
+        refresh_jwt: refresh_token,
+        expires_at: refreshExpiresAt
+    })
+})
+
+router.post('/refresh', authorize, async (req, res) => {
+    const authHeader = req.get('authorization')
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Refresh token required' })
+    }
+    const refreshToken = authHeader.split(' ')[1]
+
+    const userId = await req.authUser.sub
+
+    const storedRefreshToken = await prisma.refresh_tokens.findUnique({
+        where: { 
+            user_id: userId,
+            token: refreshToken
+        }
+    })
+
+    try {
+        jwt.verify(storedRefreshToken.token, process.env.JWT_REFRESH_SECRET)
+    } catch (error) {
+        return res.status(401).json({ message: 'Invalid or expired refresh token' })
+    }
+    
+    const access_token = await jwt.sign({ 
+        sub: userId,
+        email: req.authUser.email,
+        name: req.authUser.name
+    }, process.env.JWT_SECRET, { expiresIn: '15min' })
+
+    res.send({
+        msg : "Token refreshed",
+        id: userId,
+        jwt: access_token
+    })
+})
+
+router.delete('/logout', async (req, res) => {
+    const refreshToken = await prisma.refresh_tokens.deleteMany({
+        where: {
+            user_id: req.body.user_id,
+            token: req.body.token
+        }
+    })
+    res.send({
+        msg : "Logout successful"
     })
 })
 

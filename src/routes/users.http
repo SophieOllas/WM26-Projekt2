@@ -1,4 +1,4 @@
-@API_URL = http://localhost:8300
+@API_URL = http://localhost:8302
 @DEV_TOKEN = {{$dotenv DEV_TOKEN}}
 
 GET {{API_URL}}/users
@@ -22,4 +22,17 @@ Content-Type: application/json
 {
   "email": "john@doe.com",
   "password": "password123"
+}
+
+###
+POST {{API_URL}}/users/refresh
+Authorization: Bearer {{DEV_TOKEN}}
+
+###
+DELETE {{API_URL}}/users/logout
+Content-Type: application/json
+
+{
+  "user_id": 2,
+  "token": "{{DEV_TOKEN}}"
 }
