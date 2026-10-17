@@ -90,23 +90,18 @@ router.post('/login', async (req, res) => {
 
 router.post('/refresh', authorize, async (req, res) => {
     const authHeader = req.get('authorization')
-    if (!authHeader) {
-        return res.status(401).json({ message: 'Refresh token required' })
-    }
     const refreshToken = authHeader.split(' ')[1]
-
-    const userId = await req.authUser.sub
+    const userId = req.authUser.sub
 
     const storedRefreshToken = await prisma.refresh_tokens.findUnique({
-        where: { 
-            user_id: userId,
-            token: refreshToken
-        }
+        where: { token: refreshToken }
     })
 
-    try {
-        jwt.verify(storedRefreshToken.token, process.env.JWT_REFRESH_SECRET)
-    } catch (error) {
+    if (
+        !storedRefreshToken ||
+        storedRefreshToken.user_id !== userId ||
+        storedRefreshToken.expires_at <= new Date()
+    ) {
         return res.status(401).json({ message: 'Invalid or expired refresh token' })
     }
     

@@ -1,8 +1,36 @@
 const express = require('express')
+const { Server } = require("socket.io");
+const { createServer } = require('node:http');
+const { join } = require('node:path');
+const jwt = require('jsonwebtoken');
 const app = express()
 require('dotenv').config()
-const PORT = process.env.PORT || 8080
+const PORT = 8080
 const cors = require('cors');
+
+const server = createServer(app);
+const io = new Server(server);
+
+io.use((socket, next) => {
+  const authorization = socket.handshake.headers.authorization;
+  const [scheme, token] = authorization ? authorization.split(' ') : [];
+
+  if (scheme !== 'Bearer' || !token) {
+    return next(new Error('Authentication failed'));
+  }
+
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    if (!user.sub) {
+      return next(new Error('Authentication failed'));
+    }
+
+    socket.data.userId = String(user.sub);
+    next();
+  } catch (error) {
+    next(new Error('Authentication failed'));
+  }
+});
 
 console.log(`Node.js ${process.version}`)
 
@@ -12,14 +40,24 @@ app.use(cors({
   origin: ['https://people.arcada.fi']
 }));
 
+app.use(express.static(join(__dirname, '../frontend'), { index: false }));
+
 app.get('/', (req, res) => {
-    res.json({ msg: "Users API" })
-})
+  res.sendFile(join(__dirname, '../frontend/index.html'));
+});
+
+io.on('connection', (socket) => {
+  const userRoom = `user:${socket.data.userId}`;
+  socket.join(userRoom);
+
+  socket.on('chat message', (msg) => {
+    io.to(userRoom).emit('chat message', msg);
+  });
+});
 
 const usersRouter = require('./routes/users')
 app.use('/users', usersRouter)
 
-app.listen(PORT, () => {
-    console.log(`Running on http://localhost:${PORT}`)
-    
-})
+server.listen(PORT, () => {
+  console.log(`server running at http://localhost:${PORT}`);
+});
