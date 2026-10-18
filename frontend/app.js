@@ -1,6 +1,6 @@
 const TOKEN_KEY = 'socketChatToken';
 const REFRESH_TOKEN_KEY = 'socketChatRefreshToken';
-const BACKEND_URL = 'https://YOUR-RAHTI-APP.rahtiapp.fi';
+const BACKEND_URL = 'https://wm-26-projekt-2-wm26-projekt2.2.rahtiapp.fi';
 
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
