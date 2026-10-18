@@ -5,11 +5,18 @@ const { join } = require('node:path');
 const jwt = require('jsonwebtoken');
 const app = express()
 require('dotenv').config()
-const PORT = 8080
+const PORT = process.env.PORT || 8080
 const cors = require('cors');
+const FRONTEND_ORIGIN = 'https://people.arcada.fi';
 
 const server = createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: FRONTEND_ORIGIN,
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }
+});
 
 io.use((socket, next) => {
   const authorization = socket.handshake.headers.authorization;
@@ -37,7 +44,8 @@ console.log(`Node.js ${process.version}`)
 app.use(express.json())
 
 app.use(cors({
-  origin: ['https://people.arcada.fi']
+  origin: FRONTEND_ORIGIN,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.static(join(__dirname, '../frontend'), { index: false }));
@@ -59,5 +67,5 @@ const usersRouter = require('./routes/users')
 app.use('/users', usersRouter)
 
 server.listen(PORT, () => {
-  console.log(`server running at http://localhost:${PORT}`);
+  console.log(`server running on port ${PORT}`);
 });

@@ -1,5 +1,6 @@
 const TOKEN_KEY = 'socketChatToken';
 const REFRESH_TOKEN_KEY = 'socketChatRefreshToken';
+const BACKEND_URL = 'https://YOUR-RAHTI-APP.rahtiapp.fi';
 
 const loginForm = document.getElementById('login-form');
 const loginError = document.getElementById('login-error');
@@ -7,6 +8,7 @@ const emailInput = document.getElementById('email');
 const passwordInput = document.getElementById('password');
 const status = document.getElementById('connection-status');
 const reconnectButton = document.getElementById('reconnect');
+const chatPanel = document.getElementById('chat-panel');
 const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
@@ -18,6 +20,7 @@ let refreshPromise;
 function updateConnectionStatus(message, connected) {
     status.textContent = message;
     reconnectButton.hidden = connected;
+    chatPanel.hidden = !connected;
     form.hidden = !connected;
     messages.hidden = !connected;
 }
@@ -52,7 +55,7 @@ function scheduleRefresh(accessToken) {
         const delay = Math.max(0, payload.exp * 1000 - Date.now());
         refreshTimer = window.setTimeout(refreshAccessAndReconnect, delay);
     } catch {
-        showLogin('Your access token is invalid. Please log in again.');
+        showLogin('Please log in again.');
     }
 }
 
@@ -70,7 +73,7 @@ async function refreshAccessAndReconnect() {
 
         updateConnectionStatus('Refreshing session…', false);
         try {
-            const response = await fetch('/users/refresh', {
+            const response = await fetch(`${BACKEND_URL}/users/refresh`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${refreshToken}`
@@ -118,7 +121,7 @@ function connectWithToken(token) {
 
     loginError.textContent = '';
     updateConnectionStatus('Connecting…', false);
-    const currentSocket = io({
+    const currentSocket = io(BACKEND_URL, {
         autoConnect: false,
         reconnection: false,
         extraHeaders: {
@@ -168,7 +171,7 @@ loginForm.addEventListener('submit', async (event) => {
     loginError.textContent = '';
 
     try {
-        const response = await fetch('/users/login', {
+        const response = await fetch(`${BACKEND_URL}/users/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
