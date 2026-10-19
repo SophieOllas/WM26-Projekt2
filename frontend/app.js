@@ -29,14 +29,19 @@ function clearRefreshTimer() {
     window.clearTimeout(refreshTimer);
 }
 
+function disconnectSocket() {
+    const oldSocket = socket;
+    socket = undefined;
+    if (oldSocket) {
+        oldSocket.disconnect();
+    }
+}
+
 function showLogin(message) {
     clearRefreshTimer();
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
-
-    const oldSocket = socket;
-    socket = undefined;
-    oldSocket?.disconnect();
+    disconnectSocket();
 
     loginForm.hidden = false;
     loginError.textContent = message;
@@ -59,65 +64,54 @@ function scheduleRefresh(accessToken) {
     }
 }
 
-async function refreshAccessAndReconnect() {
-    if (refreshPromise) {
-        return refreshPromise;
+function refreshAccessAndReconnect() {
+    if (!refreshPromise) {
+        refreshPromise = refreshSession().finally(() => {
+            refreshPromise = undefined;
+        });
+    }
+    return refreshPromise;
+}
+
+async function refreshSession() {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) {
+        showLogin('Your session expired. Please log in again.');
+        return;
     }
 
-    refreshPromise = (async () => {
-        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-        if (!refreshToken) {
+    updateConnectionStatus('Refreshing session…', false);
+    try {
+        const response = await fetch(`${BACKEND_URL}/users/refresh`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${refreshToken}`
+            }
+        });
+        const result = await response.json();
+
+        if (response.status === 401) {
             showLogin('Your session expired. Please log in again.');
             return;
         }
-
-        updateConnectionStatus('Refreshing session…', false);
-        try {
-            const response = await fetch(`${BACKEND_URL}/users/refresh`, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${refreshToken}`
-                }
-            });
-
-            let result;
-            try {
-                result = await response.json();
-            } catch {
-                result = {};
-            }
-
-            if (response.status === 401) {
-                showLogin('Your session expired. Please log in again.');
-                return;
-            }
-            if (!response.ok) {
-                throw new Error(result.message || 'Could not refresh your session.');
-            }
-            if (!result.jwt) {
-                throw new Error('The server did not return a new access token.');
-            }
-
-            localStorage.setItem(TOKEN_KEY, result.jwt);
-            connectWithToken(result.jwt);
-        } catch (error) {
-            updateConnectionStatus('Could not refresh session', false);
-            loginError.textContent = `${error.message} Use Reconnect to try again.`;
+        if (!response.ok) {
+            throw new Error(result.message || 'Could not refresh your session.');
         }
-    })();
+        if (!result.jwt) {
+            throw new Error('The server did not return a new access token.');
+        }
 
-    try {
-        await refreshPromise;
-    } finally {
-        refreshPromise = undefined;
+        localStorage.setItem(TOKEN_KEY, result.jwt);
+        connectWithToken(result.jwt);
+    } catch (error) {
+        updateConnectionStatus('Could not refresh session', false);
+        loginError.textContent = `${error.message} Use Reconnect to try again.`;
     }
 }
 
 function connectWithToken(token) {
     clearRefreshTimer();
-    const oldSocket = socket;
-    socket = undefined;
-    oldSocket?.disconnect();
+    disconnectSocket();
 
     loginError.textContent = '';
     updateConnectionStatus('Connecting…', false);
@@ -185,7 +179,6 @@ loginForm.addEventListener('submit', async (event) => {
             loginError.textContent = result.message || 'Login failed.';
             return;
         }
-
         if (!result.jwt || !result.refresh_jwt) {
             loginError.textContent = 'Login succeeded but the server did not return both tokens.';
             return;
@@ -214,7 +207,7 @@ reconnectButton.addEventListener('click', () => {
 
 form.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (input.value.trim() && socket?.connected) {
+    if (input.value.trim() && socket && socket.connected) {
         socket.emit('chat message', input.value);
         input.value = '';
     }
